@@ -1,75 +1,82 @@
 // =============================================
 // 스마트팜 자동 급수 시스템
-// 토양 수분 감지 → 임계값 이하 → 펌프 ON
+// Spring Boot 대시보드 연동 버전
+//
+// [송신] Arduino → PC (3초마다)
+//   형식: SOIL:850,PUMP:OFF
+//
+// [수신] PC → Arduino (대시보드 수동 제어)
+//   형식: PUMP_ON 또는 PUMP_OFF
 // =============================================
 
 // 핀 설정
 const int SOIL_SENSOR_PIN = A0;  // 토양수분 센서 아날로그 핀
 const int RELAY_PIN = 7;         // 릴레이 디지털 핀
 
-// 임계값 설정 (0 ~ 1023)
-// 숫자가 높을수록 = 흙이 건조한 상태
-// 숫자가 낮을수록 = 흙이 촉촉한 상태
-const int DRY_THRESHOLD = 600;   // 이 값 이상이면 건조 → 펌프 ON
-const int WET_THRESHOLD = 400;   // 이 값 이하면 충분 → 펌프 OFF
+// 자동 제어 임계값 (analogRead 범위: 0 ~ 1023, 높을수록 건조)
+const int DRY_THRESHOLD = 600;   // 이상이면 건조 → 펌프 자동 ON
+const int WET_THRESHOLD = 400;   // 이하면 충분 → 펌프 자동 OFF
 
-// 펌프 동작 시간 설정
-const int PUMP_ON_TIME = 3000;  // 펌프 작동 시간 (3초)
-const int CHECK_INTERVAL = 5000; // 센서 체크 주기 (5초)
+// 서버 시뮬레이션 주기(3초)와 동일하게 설정
+const unsigned long SEND_INTERVAL = 3000;
 
 bool isPumping = false;
-unsigned long lastCheckTime = 0;
+unsigned long lastSendTime = 0;
 
 void setup() {
+  // baud rate는 application.yaml serial.baud-rate: 9600 과 반드시 일치해야 함
   Serial.begin(9600);
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH); // 릴레이 초기값 OFF (HIGH = OFF)
-  Serial.println("=== 스마트팜 시스템 시작 ===");
+  // 릴레이 모듈은 LOW가 ON이므로 초기값 HIGH(OFF)로 설정
+  digitalWrite(RELAY_PIN, HIGH);
 }
 
 void loop() {
-  unsigned long currentTime = millis();
+  // 서버(대시보드)에서 수동 제어 명령 수신
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd == "PUMP_ON") {
+      pumpOn();
+    } else if (cmd == "PUMP_OFF") {
+      pumpOff();
+    }
+  }
 
-  // 설정한 주기마다 센서 체크
-  if (currentTime - lastCheckTime >= CHECK_INTERVAL) {
-    lastCheckTime = currentTime;
+  unsigned long now = millis();
+  if (now - lastSendTime >= SEND_INTERVAL) {
+    lastSendTime = now;
 
-    int soilValue = analogRead(SOIL_SENSOR_PIN);
+    int soilRaw = analogRead(SOIL_SENSOR_PIN);
 
-    // 시리얼로 데이터 전송 (대시보드 연동용)
+    // 자동 제어: 임계값 기반 펌프 ON/OFF
+    if (soilRaw >= DRY_THRESHOLD && !isPumping) {
+      pumpOn();
+    } else if (soilRaw <= WET_THRESHOLD && isPumping) {
+      pumpOff();
+    }
+
+    // 서버로 데이터 전송 (이 줄 외에 다른 Serial.print 금지 — 서버 파싱 오류 원인)
     Serial.print("SOIL:");
-    Serial.print(soilValue);
+    Serial.print(soilRaw);
     Serial.print(",PUMP:");
     Serial.println(isPumping ? "ON" : "OFF");
-
-    // 상태 출력
-    Serial.print("토양 수분값: ");
-    Serial.print(soilValue);
-
-    if (soilValue >= DRY_THRESHOLD && !isPumping) {
-      // 건조 → 펌프 ON
-      Serial.println(" → 건조! 펌프 가동");
-      pumpOn();
-
-    } else if (soilValue <= WET_THRESHOLD && isPumping) {
-      // 충분히 촉촉 → 펌프 OFF
-      Serial.println(" → 충분! 펌프 중지");
-      pumpOff();
-
-    } else {
-      Serial.println(" → 정상 범위");
-    }
   }
 }
 
+/**
+ * 릴레이를 켜서 펌프를 작동시킵니다.
+ * 릴레이 모듈은 LOW 신호에서 ON 동작합니다.
+ */
 void pumpOn() {
-  digitalWrite(RELAY_PIN, LOW);  // LOW = 릴레이 ON
+  digitalWrite(RELAY_PIN, LOW);
   isPumping = true;
-  Serial.println("[펌프 ON]");
 }
 
+/**
+ * 릴레이를 꺼서 펌프를 정지시킵니다.
+ */
 void pumpOff() {
-  digitalWrite(RELAY_PIN, HIGH); // HIGH = 릴레이 OFF
+  digitalWrite(RELAY_PIN, HIGH);
   isPumping = false;
-  Serial.println("[펌프 OFF]");
 }
