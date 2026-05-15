@@ -23,6 +23,10 @@ const unsigned long SEND_INTERVAL = 3000;
 bool isPumping = false;
 unsigned long lastSendTime = 0;
 
+// 수동 제어 모드: 대시보드 버튼 누르면 30초간 자동 제어 억제
+bool manualMode = false;
+unsigned long manualModeUntil = 0;
+
 void setup() {
   // baud rate는 application.yaml serial.baud-rate: 9600 과 반드시 일치해야 함
   Serial.begin(9600);
@@ -37,8 +41,12 @@ void loop() {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
     if (cmd == "PUMP_ON") {
+      manualMode = true;
+      manualModeUntil = millis() + 30000;
       pumpOn();
     } else if (cmd == "PUMP_OFF") {
+      manualMode = true;
+      manualModeUntil = millis() + 30000;
       pumpOff();
     }
   }
@@ -49,11 +57,18 @@ void loop() {
 
     int soilRaw = analogRead(SOIL_SENSOR_PIN);
 
-    // 자동 제어: 임계값 기반 펌프 ON/OFF
-    if (soilRaw >= DRY_THRESHOLD && !isPumping) {
-      pumpOn();
-    } else if (soilRaw <= WET_THRESHOLD && isPumping) {
-      pumpOff();
+    // 수동 모드 타임아웃 해제
+    if (manualMode && millis() > manualModeUntil) {
+      manualMode = false;
+    }
+
+    // 자동 제어: 수동 모드일 땐 스킵
+    if (!manualMode) {
+      if (soilRaw >= DRY_THRESHOLD && !isPumping) {
+        pumpOn();
+      } else if (soilRaw <= WET_THRESHOLD && isPumping) {
+        pumpOff();
+      }
     }
 
     // 서버로 데이터 전송 (이 줄 외에 다른 Serial.print 금지 — 서버 파싱 오류 원인)
