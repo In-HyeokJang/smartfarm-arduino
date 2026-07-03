@@ -1,0 +1,14 @@
+const int relayPin = 14; // NodeMCU-32S 보드의 P14 = GPIO14
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(relayPin, LOW);  // Low-trigger 릴레이 → LOW일 때 켜짐
+  Serial.println("P14 = LOW, 릴레이 ON 시도");
+}
+
+void loop() {
+  // 계속 켜진 상태 유지, 상태 로그만 출력
+  Serial.println("relay ON 유지 중...");
+  delay(10000);
+}
