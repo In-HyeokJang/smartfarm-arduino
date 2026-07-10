@@ -1,0 +1,37 @@
+#include <DHT.h>
+
+const int relayPin = 14;   // 릴레이 IN1 → GPIO14 (Low-trigger: LOW일 때 ON)
+#define DHTPIN 4           // DHT22 OUT → GPIO4
+#define DHTTYPE DHT22
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(relayPin, OUTPUT);
+  digitalWrite(relayPin, LOW);   // 릴레이 ON (LED 켜짐)
+  Serial.println("P14 = LOW, 릴레이 ON");
+
+  dht.begin();
+  Serial.println("DHT22 시작 (5초 간격 측정)");
+  Serial.println("--------------------------");
+}
+
+void loop() {
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+
+  if (isnan(h) || isnan(t)) {
+    Serial.println("[DHT22] 읽기 실패 - 배선/핀 확인");
+  } else {
+    Serial.print("[DHT22] 온도: ");
+    Serial.print(t, 1);           // 소수점 1자리
+    Serial.print(" °C  |  습도: ");
+    Serial.print(h, 1);
+    Serial.print(" %  |  릴레이: ");
+    Serial.println(digitalRead(relayPin) == LOW ? "ON" : "OFF");
+  }
+
+  delay(5000);   // 5초마다 (DHT22 최소 간격 2초, 그 이상이면 OK)
+}
