@@ -29,8 +29,8 @@ void loop() {
     Serial.print(t, 1);           // 소수점 1자리
     Serial.print(" °C  |  습도: ");
     Serial.print(h, 1);
-    Serial.print(" %  |  릴레이: ");
-    Serial.println(digitalRead(relayPin) == LOW ? "ON" : "OFF");
+    Serial.print(" %  |  릴레이 신호: ");
+    Serial.println(digitalRead(relayPin) == LOW ? "ON 명령" : "OFF 명령");
   }
 
   delay(5000);   // 5초마다 (DHT22 최소 간격 2초, 그 이상이면 OK)
